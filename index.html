@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wand Spell Caster</title>
+    <title>WandLand</title>
     <style>
         * {
             margin: 0;
@@ -140,6 +140,10 @@
         
         <div class="motion-indicator" id="motionIndicator">📱</div>
         
+        <div class="orientation-warning" id="orientationWarning" style="display:none;">
+            ⚠️ Hold your phone screen-up (face-up) for proper spell detection!
+        </div>
+        
         <div class="status" id="status">
             Tap "Start Casting" to begin
         </div>
@@ -151,8 +155,9 @@
             <strong>Instructions:</strong><br>
             1. Tap "Start Casting"<br>
             2. Allow motion and microphone access<br>
-            3. Draw a wave pattern (↝) and say "Nox" for darkness<br>
-            4. Draw an arrow (←) and say "Lumos" for light
+            3. <strong>Hold phone screen-up (face-up)</strong><br>
+            4. Draw a wave pattern (↝) and say "Nox" for darkness<br>
+            5. Draw an upward triangle (/\) and say "Lumos" for light
         </div>
     </div>
 
@@ -163,6 +168,21 @@
         let lastSpell = '';
         const MOTION_WINDOW = 1500;
         const ACCEL_THRESHOLD = 15;
+        let isScreenUp = true;
+
+        function vibrate(pattern = [200]) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        function showError(msg) {
+            updateStatus(msg);
+            vibrate([100, 50, 100]);
+            const statusEl = document.getElementById('status');
+            statusEl.classList.add('error-shake');
+            setTimeout(() => statusEl.classList.remove('error-shake'), 500);
+        }
 
         function updateStatus(msg) {
             document.getElementById('status').textContent = msg;
@@ -170,6 +190,22 @@
 
         function updateMotionIndicator(symbol) {
             document.getElementById('motionIndicator').textContent = symbol;
+        }
+        
+        function checkOrientation(event) {
+            if (!event.accelerationIncludingGravity) return;
+            
+            const z = event.accelerationIncludingGravity.z || 0;
+            
+            // Positive Z means screen is facing up
+            isScreenUp = z > 5;
+            
+            const warningEl = document.getElementById('orientationWarning');
+            if (isActive && !isScreenUp) {
+                warningEl.style.display = 'block';
+            } else {
+                warningEl.style.display = 'none';
+            }
         }
 
         function castLumos() {
@@ -187,9 +223,9 @@
         }
 
         function detectWandMovement(data) {
-            if (data.length < 5) return null;
+            if (data.length < 8) return null;
             
-            const recentData = data.slice(-10);
+            const recentData = data.slice(-20);
             let totalAccel = 0;
             let direction = { x: 0, y: 0, z: 0 };
             
@@ -206,10 +242,45 @@
                 const horizontal = Math.abs(direction.x);
                 const vertical = Math.abs(direction.y);
                 
-                if (horizontal > vertical * 1.5 && direction.x < 0) {
+                // Detect triangle /\ pattern for Lumos
+                // Split motion into three phases: up-right (/), peak, down-right (\)
+                const third = Math.floor(recentData.length / 3);
+                const phase1 = recentData.slice(0, third);
+                const phase2 = recentData.slice(third, third * 2);
+                const phase3 = recentData.slice(third * 2);
+                
+                let phase1X = 0, phase1Y = 0;
+                let phase2Y = 0;
+                let phase3X = 0, phase3Y = 0;
+                
+                for (let d of phase1) {
+                    phase1X += d.x;
+                    phase1Y += d.y;
+                }
+                for (let d of phase2) {
+                    phase2Y += d.y;
+                }
+                for (let d of phase3) {
+                    phase3X += d.x;
+                    phase3Y += d.y;
+                }
+                
+                // Check for triangle: 
+                // Phase 1: moving forward and up (positive X, negative Y)
+                // Phase 2: at peak (minimal Y change)
+                // Phase 3: moving forward and down (positive X, positive Y)
+                const isTriangle = (
+                    phase1X > 3 && phase1Y < -3 &&  // Up-right /
+                    Math.abs(phase2Y) < 8 &&         // Peak
+                    phase3X > 3 && phase3Y > 3 &&    // Down-right \
+                    vertical > 10                     // Significant vertical movement
+                );
+                
+                if (isTriangle) {
                     return 'lumos';
                 }
                 
+                // Detect horizontal wave pattern for Nox
                 if (horizontal > vertical * 0.8 && Math.abs(direction.y) > 5) {
                     return 'nox';
                 }
@@ -220,6 +291,12 @@
 
         function handleMotion(event) {
             if (!isActive) return;
+            
+            checkOrientation(event);
+            
+            if (!isScreenUp) {
+                return;
+            }
             
             const accel = event.accelerationIncludingGravity;
             if (!accel) return;
@@ -268,16 +345,25 @@
                     if (lastSpell === 'lumos') {
                         castLumos();
                         lastSpell = '';
+                    } else if (lastSpell === 'nox') {
+                        showError('❌ Wrong movement! You did Nox movement but said Lumos. Try again!');
+                        lastSpell = '';
                     } else {
-                        updateStatus('Perform the Lumos wand movement (← arrow) first!');
+                        showError('❌ Perform the Lumos wand movement (/\\ triangle) first!');
                     }
                 } else if (text.includes('nox')) {
                     if (lastSpell === 'nox') {
                         castNox();
                         lastSpell = '';
+                    } else if (lastSpell === 'lumos') {
+                        showError('❌ Wrong movement! You did Lumos movement but said Nox. Try again!');
+                        lastSpell = '';
                     } else {
-                        updateStatus('Perform the Nox wand movement (↝ wave) first!');
+                        showError('❌ Perform the Nox wand movement (↝ wave) first!');
                     }
+                } else if (text.length > 2) {
+                    // Only show error for substantial speech (not just noise)
+                    showError('❌ Unknown spell! Try saying "Lumos" or "Nox"');
                 }
             };
             
