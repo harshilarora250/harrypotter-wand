@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wand Spell Caster</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Georgia', serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            transition: background-color 0.8s ease;
+            background-color: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        body.lumos {
+            background-color: #fffbdb;
+            color: #333;
+        }
+        
+        body.nox {
+            background-color: #0a0a0a;
+            color: #666;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+        
+        .status {
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            min-height: 60px;
+        }
+        
+        .glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        body.lumos .glow {
+            opacity: 0.6;
+            background: radial-gradient(circle, rgba(255, 251, 219, 1) 0%, rgba(255, 215, 0, 0.4) 50%, transparent 70%);
+            box-shadow: 0 0 100px 50px rgba(255, 215, 0, 0.4);
+        }
+        
+        .btn {
+            background: rgba(255, 215, 0, 0.2);
+            border: 2px solid rgba(255, 215, 0, 0.5);
+            color: inherit;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: rgba(255, 215, 0, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .motion-indicator {
+            font-size: 3em;
+            margin: 20px 0;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .instructions {
+            font-size: 0.9em;
+            opacity: 0.7;
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+        
+        .error-shake {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .orientation-warning {
+            background: rgba(255, 100, 100, 0.3);
+            border: 2px solid rgba(255, 100, 100, 0.6);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="glow"></div>
+    <div class="container">
+        <h1>✨ Wand Spell Caster ✨</h1>
+        
+        <div class="motion-indicator" id="motionIndicator">📱</div>
+        
+        <div class="status" id="status">
+            Tap "Start Casting" to begin
+        </div>
+        
+        <button class="btn" id="startBtn" onclick="startCasting()">Start Casting</button>
+        <button class="btn" id="stopBtn" onclick="stopCasting()" style="display:none;">Stop Casting</button>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong><br>
+            1. Tap "Start Casting"<br>
+            2. Allow motion and microphone access<br>
+            3. Draw a wave pattern (↝) and say "Nox" for darkness<br>
+            4. Draw an arrow (←) and say "Lumos" for light
+        </div>
+    </div>
+
+    <script>
+        let isActive = false;
+        let motionData = [];
+        let recognition = null;
+        let lastSpell = '';
+        const MOTION_WINDOW = 1500;
+        const ACCEL_THRESHOLD = 15;
+
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+
+        function updateMotionIndicator(symbol) {
+            document.getElementById('motionIndicator').textContent = symbol;
+        }
+
+        function castLumos() {
+            document.body.className = 'lumos';
+            updateStatus('✨ LUMOS! The light shines bright! ✨');
+            updateMotionIndicator('💡');
+            setTimeout(() => updateMotionIndicator('📱'), 2000);
+        }
+
+        function castNox() {
+            document.body.className = 'nox';
+            updateStatus('🌑 NOX! Darkness falls... 🌑');
+            updateMotionIndicator('🌙');
+            setTimeout(() => updateMotionIndicator('📱'), 2000);
+        }
+
+        function detectWandMovement(data) {
+            if (data.length < 5) return null;
+            
+            const recentData = data.slice(-10);
+            let totalAccel = 0;
+            let direction = { x: 0, y: 0, z: 0 };
+            
+            for (let d of recentData) {
+                totalAccel += d.magnitude;
+                direction.x += d.x;
+                direction.y += d.y;
+                direction.z += d.z;
+            }
+            
+            const avgAccel = totalAccel / recentData.length;
+            
+            if (avgAccel > ACCEL_THRESHOLD) {
+                const horizontal = Math.abs(direction.x);
+                const vertical = Math.abs(direction.y);
+                
+                if (horizontal > vertical * 1.5 && direction.x < 0) {
+                    return 'lumos';
+                }
+                
+                if (horizontal > vertical * 0.8 && Math.abs(direction.y) > 5) {
+                    return 'nox';
+                }
+            }
+            
+            return null;
+        }
+
+        function handleMotion(event) {
+            if (!isActive) return;
+            
+            const accel = event.accelerationIncludingGravity;
+            if (!accel) return;
+            
+            const x = accel.x || 0;
+            const y = accel.y || 0;
+            const z = accel.z || 0;
+            const magnitude = Math.sqrt(x*x + y*y + z*z);
+            
+            motionData.push({
+                x, y, z, magnitude,
+                timestamp: Date.now()
+            });
+            
+            motionData = motionData.filter(d => 
+                Date.now() - d.timestamp < MOTION_WINDOW
+            );
+            
+            const detectedMovement = detectWandMovement(motionData);
+            if (detectedMovement) {
+                lastSpell = detectedMovement;
+                updateStatus(`Wand movement detected: ${detectedMovement.toUpperCase()}! Now say the spell!`);
+            }
+        }
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                updateStatus('Speech recognition not supported on this device');
+                return false;
+            }
+            
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            
+            recognition.onresult = (event) => {
+                const last = event.results.length - 1;
+                const text = event.results[last][0].transcript.toLowerCase().trim();
+                
+                updateStatus(`Heard: "${text}"`);
+                
+                if (text.includes('lumos')) {
+                    if (lastSpell === 'lumos') {
+                        castLumos();
+                        lastSpell = '';
+                    } else {
+                        updateStatus('Perform the Lumos wand movement (← arrow) first!');
+                    }
+                } else if (text.includes('nox')) {
+                    if (lastSpell === 'nox') {
+                        castNox();
+                        lastSpell = '';
+                    } else {
+                        updateStatus('Perform the Nox wand movement (↝ wave) first!');
+                    }
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    updateStatus('Listening for spell...');
+                }
+            };
+            
+            return true;
+        }
+
+        async function requestMotionPermission() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    return permission === 'granted';
+                } catch (error) {
+                    console.error('Motion permission error:', error);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        async function startCasting() {
+            const motionPermission = await requestMotionPermission();
+            if (!motionPermission) {
+                updateStatus('Motion permission denied. Please allow motion access.');
+                return;
+            }
+            
+            if (!initSpeechRecognition()) {
+                return;
+            }
+            
+            isActive = true;
+            motionData = [];
+            lastSpell = '';
+            
+            window.addEventListener('devicemotion', handleMotion);
+            
+            try {
+                recognition.start();
+                updateStatus('🪄 Ready! Perform a wand movement and say the spell!');
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-block';
+            } catch (error) {
+                console.error('Error starting recognition:', error);
+                updateStatus('Error starting speech recognition');
+            }
+        }
+
+        function stopCasting() {
+            isActive = false;
+            window.removeEventListener('devicemotion', handleMotion);
+            
+            if (recognition) {
+                recognition.stop();
+            }
+            
+            updateStatus('Casting stopped. Tap "Start Casting" to begin again.');
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+            updateMotionIndicator('📱');
+        }
+    </script>
+</body>
+</html>
