@@ -166,9 +166,10 @@
         let motionData = [];
         let recognition = null;
         let lastSpell = '';
-        const MOTION_WINDOW = 1500;
-        const ACCEL_THRESHOLD = 15;
+        const MOTION_WINDOW = 2000;
+        const ACCEL_THRESHOLD = 12;
         let isScreenUp = true;
+        let detectionCooldown = false;
 
         function vibrate(pattern = [200]) {
             if ('vibrate' in navigator) {
