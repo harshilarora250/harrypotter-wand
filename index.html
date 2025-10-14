@@ -141,7 +141,7 @@
         <div class="motion-indicator" id="motionIndicator">📱</div>
         
         <div class="orientation-warning" id="orientationWarning" style="display:none;">
-            ⚠️ Hold your phone in landscape mode with the screen facing LEFT!
+            ⚠️ Hold your phone screen-up (face-up) for proper spell detection!
         </div>
         
         <div class="status" id="status">
@@ -155,9 +155,9 @@
             <strong>Instructions:</strong><br>
             1. Tap "Start Casting"<br>
             2. Allow motion and microphone access<br>
-            3. <strong>Hold phone in landscape with screen facing LEFT</strong><br>
-            4. Draw a wave pattern (↝) and say "Nox" for darkness<br>
-            5. Draw a triangle (/\) and say "Lumos" for light
+            3. <strong>Hold phone screen-up (face-up)</strong><br>
+            4. Draw a curved wave (↶) and say "Nox" for darkness<br>
+            5. Move up then down (↑↓) and say "Lumos" for light
         </div>
     </div>
 
@@ -223,9 +223,9 @@
         }
 
         function detectWandMovement(data) {
-            if (data.length < 8) return null;
+            if (data.length < 10) return null;
             
-            const recentData = data.slice(-20);
+            const recentData = data.slice(-25);
             let totalAccel = 0;
             let direction = { x: 0, y: 0, z: 0 };
             
@@ -239,54 +239,56 @@
             const avgAccel = totalAccel / recentData.length;
             
             if (avgAccel > ACCEL_THRESHOLD) {
-                // With screen facing left:
-                // Y axis = forward/back (forward is negative Y)
-                // Z axis = up/down (up is negative Z)
+                // Screen facing up orientation:
+                // X axis = left/right
+                // Y axis = forward/back (toward you is positive, away is negative)
                 
-                const forward = Math.abs(direction.y);
-                const vertical = Math.abs(direction.z);
+                const horizontal = Math.abs(direction.x);
+                const vertical = Math.abs(direction.y);
                 
-                // Detect triangle /\ pattern for Lumos
-                // Split motion into three phases
-                const third = Math.floor(recentData.length / 3);
-                const phase1 = recentData.slice(0, third);
-                const phase2 = recentData.slice(third, third * 2);
-                const phase3 = recentData.slice(third * 2);
+                // Split into two halves to detect direction changes
+                const half = Math.floor(recentData.length / 2);
+                const firstHalf = recentData.slice(0, half);
+                const secondHalf = recentData.slice(half);
                 
-                let phase1Y = 0, phase1Z = 0;
-                let phase2Z = 0;
-                let phase3Y = 0, phase3Z = 0;
+                let firstY = 0, secondY = 0;
+                let firstX = 0, secondX = 0;
                 
-                for (let d of phase1) {
-                    phase1Y += d.y;
-                    phase1Z += d.z;
+                for (let d of firstHalf) {
+                    firstY += d.y;
+                    firstX += d.x;
                 }
-                for (let d of phase2) {
-                    phase2Z += d.z;
-                }
-                for (let d of phase3) {
-                    phase3Y += d.y;
-                    phase3Z += d.z;
+                for (let d of secondHalf) {
+                    secondY += d.y;
+                    secondX += d.x;
                 }
                 
-                // Check for triangle: 
-                // Phase 1: moving forward and up (negative Y, negative Z)
-                // Phase 2: at peak (minimal Z change)
-                // Phase 3: moving forward and down (negative Y, positive Z)
-                const isTriangle = (
-                    phase1Y < -3 && phase1Z < -3 &&  // Forward-up /
-                    Math.abs(phase2Z) < 8 &&          // Peak
-                    phase3Y < -3 && phase3Z > 3 &&   // Forward-down \
-                    vertical > 10                      // Significant vertical movement
+                // Detect Lumos: straight up then down (↑↓)
+                // Must have strong vertical movement in opposite directions
+                // and minimal horizontal movement
+                const isUpDown = (
+                    firstY < -8 &&           // First half moving away (up)
+                    secondY > 8 &&           // Second half moving toward (down)
+                    vertical > 20 &&         // Strong vertical movement
+                    horizontal < vertical * 0.4  // Minimal horizontal (straight line)
                 );
                 
-                if (isTriangle) {
+                if (isUpDown) {
                     return 'lumos';
                 }
                 
-                // Detect horizontal wave pattern for Nox
-                // Should be primarily forward motion with some side-to-side
-                if (forward > 10 && Math.abs(direction.x) > 3) {
+                // Detect Nox: curved wave pattern (↶)
+                // Must have significant horizontal movement along with vertical
+                // and both halves should show curve characteristics
+                const isCurve = (
+                    horizontal > 10 &&       // Significant side movement
+                    vertical > 8 &&          // Some forward/back
+                    horizontal > vertical * 0.8 &&  // More horizontal than vertical
+                    Math.abs(firstX) > 4 &&  // Curve in first half
+                    Math.abs(secondX) > 4    // Curve in second half
+                );
+                
+                if (isCurve) {
                     return 'nox';
                 }
             }
