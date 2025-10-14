@@ -156,8 +156,8 @@
             1. Tap "Start Casting"<br>
             2. Allow motion and microphone access<br>
             3. <strong>Hold phone screen-up (face-up)</strong><br>
-            4. Swipe right (→) and say "Nox" for darkness<br>
-            5. Swipe left (←) and say "Lumos" for light
+            4. Swipe left (←) and say "Lumos" to create light<br>
+            5. Swipe right (→) and say "Nox" to turn off the light
         </div>
     </div>
 
@@ -217,8 +217,8 @@
         }
 
         function castNox() {
-            document.body.className = 'nox';
-            updateStatus('🌑 NOX! Darkness falls... 🌑');
+            document.body.className = '';
+            updateStatus('🌑 NOX! The light is extinguished. 🌑');
             updateMotionIndicator('🌙');
             setTimeout(() => updateMotionIndicator('📱'), 2000);
         }
