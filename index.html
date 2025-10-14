@@ -156,7 +156,7 @@
             1. Tap "Start Casting"<br>
             2. Allow motion and microphone access<br>
             3. <strong>Hold phone screen-up (face-up)</strong><br>
-            4. Draw a curved wave (↶) and say "Nox" for darkness<br>
+            4. Swipe right flatly (→) and say "Nox" for darkness<br>
             5. Move up then down (↑↓) and say "Lumos" for light
         </div>
     </div>
@@ -240,7 +240,7 @@
             
             if (avgAccel > ACCEL_THRESHOLD) {
                 // Screen facing up orientation:
-                // X axis = left/right
+                // X axis = left/right (right is positive)
                 // Y axis = forward/back (toward you is positive, away is negative)
                 
                 const horizontal = Math.abs(direction.x);
@@ -252,15 +252,12 @@
                 const secondHalf = recentData.slice(half);
                 
                 let firstY = 0, secondY = 0;
-                let firstX = 0, secondX = 0;
                 
                 for (let d of firstHalf) {
                     firstY += d.y;
-                    firstX += d.x;
                 }
                 for (let d of secondHalf) {
                     secondY += d.y;
-                    secondX += d.x;
                 }
                 
                 // Detect Lumos: straight up then down (↑↓)
@@ -277,18 +274,16 @@
                     return 'lumos';
                 }
                 
-                // Detect Nox: curved wave pattern (↶)
-                // Must have significant horizontal movement along with vertical
-                // and both halves should show curve characteristics
-                const isCurve = (
-                    horizontal > 10 &&       // Significant side movement
-                    vertical > 8 &&          // Some forward/back
-                    horizontal > vertical * 0.8 &&  // More horizontal than vertical
-                    Math.abs(firstX) > 4 &&  // Curve in first half
-                    Math.abs(secondX) > 4    // Curve in second half
+                // Detect Nox: flat movement to the right (→)
+                // Must have strong horizontal movement to the right
+                // with minimal vertical movement
+                const isRightSwipe = (
+                    direction.x > 12 &&      // Moving right (positive X)
+                    horizontal > 15 &&       // Strong horizontal movement
+                    vertical < horizontal * 0.5  // Minimal vertical (flat)
                 );
                 
-                if (isCurve) {
+                if (isRightSwipe) {
                     return 'nox';
                 }
             }
@@ -356,7 +351,7 @@
                         showError('❌ Wrong movement! You did Nox movement but said Lumos. Try again!');
                         lastSpell = '';
                     } else {
-                        showError('❌ Perform the Lumos wand movement (/\\ triangle) first!');
+                        showError('❌ Perform the Lumos wand movement (↑↓ up-down) first!');
                     }
                 } else if (text.includes('nox')) {
                     if (lastSpell === 'nox') {
@@ -366,7 +361,7 @@
                         showError('❌ Wrong movement! You did Lumos movement but said Nox. Try again!');
                         lastSpell = '';
                     } else {
-                        showError('❌ Perform the Nox wand movement (↝ wave) first!');
+                        showError('❌ Perform the Nox wand movement (→ swipe right) first!');
                     }
                 } else if (text.length > 2) {
                     // Only show error for substantial speech (not just noise)
