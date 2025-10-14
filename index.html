@@ -156,8 +156,8 @@
             1. Tap "Start Casting"<br>
             2. Allow motion and microphone access<br>
             3. <strong>Hold phone screen-up (face-up)</strong><br>
-            4. Swipe right flatly (→) and say "Nox" for darkness<br>
-            5. Move up then down (↑↓) and say "Lumos" for light
+            4. Swipe right (→) and say "Nox" for darkness<br>
+            5. Swipe left (←) and say "Lumos" for light
         </div>
     </div>
 
@@ -224,69 +224,43 @@
         }
 
         function detectWandMovement(data) {
-            if (data.length < 10) return null;
+            if (data.length < 8 || detectionCooldown) return null;
             
-            const recentData = data.slice(-25);
-            let totalAccel = 0;
-            let direction = { x: 0, y: 0, z: 0 };
+            const recentData = data.slice(-30);
+            
+            // Calculate total directional movement
+            let totalX = 0;
+            let totalY = 0;
+            let peakMagnitude = 0;
             
             for (let d of recentData) {
-                totalAccel += d.magnitude;
-                direction.x += d.x;
-                direction.y += d.y;
-                direction.z += d.z;
+                totalX += d.x;
+                totalY += d.y;
+                if (d.magnitude > peakMagnitude) {
+                    peakMagnitude = d.magnitude;
+                }
             }
             
-            const avgAccel = totalAccel / recentData.length;
+            // Need significant movement to register
+            if (peakMagnitude < 18) return null;
             
-            if (avgAccel > ACCEL_THRESHOLD) {
-                // Screen facing up orientation:
-                // X axis = left/right (right is positive)
-                // Y axis = forward/back (toward you is positive, away is negative)
-                
-                const horizontal = Math.abs(direction.x);
-                const vertical = Math.abs(direction.y);
-                
-                // Split into two halves to detect direction changes
-                const half = Math.floor(recentData.length / 2);
-                const firstHalf = recentData.slice(0, half);
-                const secondHalf = recentData.slice(half);
-                
-                let firstY = 0, secondY = 0;
-                
-                for (let d of firstHalf) {
-                    firstY += d.y;
-                }
-                for (let d of secondHalf) {
-                    secondY += d.y;
-                }
-                
-                // Detect Lumos: straight up then down (↑↓)
-                // Must have strong vertical movement in opposite directions
-                // and minimal horizontal movement
-                const isUpDown = (
-                    firstY < -8 &&           // First half moving away (up)
-                    secondY > 8 &&           // Second half moving toward (down)
-                    vertical > 20 &&         // Strong vertical movement
-                    horizontal < vertical * 0.4  // Minimal horizontal (straight line)
-                );
-                
-                if (isUpDown) {
-                    return 'lumos';
-                }
-                
-                // Detect Nox: flat movement to the right (→)
-                // Must have strong horizontal movement to the right
-                // with minimal vertical movement
-                const isRightSwipe = (
-                    direction.x > 12 &&      // Moving right (positive X)
-                    horizontal > 15 &&       // Strong horizontal movement
-                    vertical < horizontal * 0.5  // Minimal vertical (flat)
-                );
-                
-                if (isRightSwipe) {
-                    return 'nox';
-                }
+            const absX = Math.abs(totalX);
+            const absY = Math.abs(totalY);
+            
+            // Detect Lumos: swipe LEFT (negative X)
+            // Must be predominantly horizontal to the left
+            if (totalX < -15 && absX > absY * 1.5) {
+                detectionCooldown = true;
+                setTimeout(() => detectionCooldown = false, 1000);
+                return 'lumos';
+            }
+            
+            // Detect Nox: swipe RIGHT (positive X)
+            // Must be predominantly horizontal to the right
+            if (totalX > 15 && absX > absY * 1.5) {
+                detectionCooldown = true;
+                setTimeout(() => detectionCooldown = false, 1000);
+                return 'nox';
             }
             
             return null;
@@ -352,7 +326,7 @@
                         showError('❌ Wrong movement! You did Nox movement but said Lumos. Try again!');
                         lastSpell = '';
                     } else {
-                        showError('❌ Perform the Lumos wand movement (↑↓ up-down) first!');
+                        showError('❌ Perform the Lumos wand movement (← swipe left) first!');
                     }
                 } else if (text.includes('nox')) {
                     if (lastSpell === 'nox') {
