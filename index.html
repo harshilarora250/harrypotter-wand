@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WandLand</title>
+    <title>Wand Spell Caster</title>
     <style>
         * {
             margin: 0;
@@ -136,7 +136,7 @@
 <body>
     <div class="glow"></div>
     <div class="container">
-        <h1>✨ WandLand ✨</h1>
+        <h1>✨ Wand Spell Caster ✨</h1>
         
         <div class="motion-indicator" id="motionIndicator">📱</div>
         
@@ -195,10 +195,10 @@
         function checkOrientation(event) {
             if (!event.accelerationIncludingGravity) return;
             
-            const x = event.accelerationIncludingGravity.x || 0;
+            const z = event.accelerationIncludingGravity.z || 0;
             
-            // Negative X means screen is facing left (landscape with screen to the left)
-            isScreenUp = x < -5;
+            // Positive Z means screen is facing up
+            isScreenUp = z > 5;
             
             const warningEl = document.getElementById('orientationWarning');
             if (isActive && !isScreenUp) {
