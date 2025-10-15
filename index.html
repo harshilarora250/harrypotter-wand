@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WandLand</title>
+    <title>Wand Spell Caster</title>
     <style>
         * {
             margin: 0;
@@ -26,6 +26,17 @@
         body.lumos {
             background-color: #fffbdb;
             color: #333;
+        }
+        
+        body.stupefy {
+            background-color: #ff0000;
+            color: #fff;
+            animation: stupefy-flash 0.5s ease-in-out;
+        }
+        
+        @keyframes stupefy-flash {
+            0%, 100% { background-color: #ff0000; }
+            50% { background-color: #ff6666; }
         }
         
         body.nox {
@@ -73,6 +84,12 @@
             opacity: 0.6;
             background: radial-gradient(circle, rgba(255, 251, 219, 1) 0%, rgba(255, 215, 0, 0.4) 50%, transparent 70%);
             box-shadow: 0 0 100px 50px rgba(255, 215, 0, 0.4);
+        }
+        
+        body.stupefy .glow {
+            opacity: 0.8;
+            background: radial-gradient(circle, rgba(255, 0, 0, 1) 0%, rgba(255, 0, 0, 0.6) 50%, transparent 70%);
+            box-shadow: 0 0 150px 75px rgba(255, 0, 0, 0.6);
         }
         
         .btn {
@@ -136,7 +153,7 @@
 <body>
     <div class="glow"></div>
     <div class="container">
-        <h1>✨ WandLand ✨</h1>
+        <h1>✨ Wand Spell Caster ✨</h1>
         
         <div class="motion-indicator" id="motionIndicator">📱</div>
         
@@ -157,7 +174,8 @@
             2. Allow motion and microphone access<br>
             3. <strong>Hold phone screen-up (face-up)</strong><br>
             4. Swipe left (←) and say "Lumos" to create light<br>
-            5. Swipe right (→) and say "Nox" to turn off the light
+            5. Swipe right (→) and say "Nox" to turn off the light<br>
+            6. Swipe down (↓) and say "Stupefy" for stunning spell
         </div>
     </div>
 
@@ -222,6 +240,17 @@
             updateMotionIndicator('🌙');
             setTimeout(() => updateMotionIndicator('📱'), 2000);
         }
+        
+        function castStupefy() {
+            document.body.className = 'stupefy';
+            vibrate([50, 100, 50, 100, 50]);
+            updateStatus('⚡ STUPEFY! Stunning spell cast! ⚡');
+            updateMotionIndicator('💥');
+            setTimeout(() => {
+                document.body.className = '';
+                updateMotionIndicator('📱');
+            }, 2000);
+        }
 
         function detectWandMovement(data) {
             if (data.length < 8 || detectionCooldown) return null;
@@ -246,6 +275,14 @@
             
             const absX = Math.abs(totalX);
             const absY = Math.abs(totalY);
+            
+            // Detect Stupefy: swipe DOWN (positive Y)
+            // Must be predominantly vertical downward
+            if (totalY > 15 && absY > absX * 1.5) {
+                detectionCooldown = true;
+                setTimeout(() => detectionCooldown = false, 1000);
+                return 'stupefy';
+            }
             
             // Detect Lumos: swipe LEFT (negative X)
             // Must be predominantly horizontal to the left
@@ -325,6 +362,9 @@
                     } else if (lastSpell === 'nox') {
                         showError('❌ Wrong movement! You did Nox movement but said Lumos. Try again!');
                         lastSpell = '';
+                    } else if (lastSpell === 'stupefy') {
+                        showError('❌ Wrong movement! You did Stupefy movement but said Lumos. Try again!');
+                        lastSpell = '';
                     } else {
                         showError('❌ Perform the Lumos wand movement (← swipe left) first!');
                     }
@@ -335,12 +375,28 @@
                     } else if (lastSpell === 'lumos') {
                         showError('❌ Wrong movement! You did Lumos movement but said Nox. Try again!');
                         lastSpell = '';
+                    } else if (lastSpell === 'stupefy') {
+                        showError('❌ Wrong movement! You did Stupefy movement but said Nox. Try again!');
+                        lastSpell = '';
                     } else {
                         showError('❌ Perform the Nox wand movement (→ swipe right) first!');
                     }
+                } else if (text.includes('stupefy')) {
+                    if (lastSpell === 'stupefy') {
+                        castStupefy();
+                        lastSpell = '';
+                    } else if (lastSpell === 'lumos') {
+                        showError('❌ Wrong movement! You did Lumos movement but said Stupefy. Try again!');
+                        lastSpell = '';
+                    } else if (lastSpell === 'nox') {
+                        showError('❌ Wrong movement! You did Nox movement but said Stupefy. Try again!');
+                        lastSpell = '';
+                    } else {
+                        showError('❌ Perform the Stupefy wand movement (↓ swipe down) first!');
+                    }
                 } else if (text.length > 2) {
                     // Only show error for substantial speech (not just noise)
-                    showError('❌ Unknown spell! Try saying "Lumos" or "Nox"');
+                    showError('❌ Unknown spell! Try saying "Lumos", "Nox", or "Stupefy"');
                 }
             };
             
